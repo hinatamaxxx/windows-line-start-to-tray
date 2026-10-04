@@ -45,11 +45,28 @@ static int StartChild(const wchar_t* relative, const wchar_t* arguments, int api
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int) {
 #ifdef TEST_LAUNCHER
-    (void)instance;
     (void)arguments;
+    WNDCLASSW cls = {};
+    cls.hInstance = instance; cls.lpfnWndProc = DefWindowProcW; cls.lpszClassName = L"SPLASH";
+    RegisterClassW(&cls);
+    HWND splash = CreateWindowExW(0, cls.lpszClassName, L"Connecting to LINE", WS_POPUP | WS_VISIBLE,
+        0, 0, 200, 100, nullptr, nullptr, instance, nullptr);
+    ShowWindow(splash, SW_SHOWNORMAL);
+    ShowWindow(splash, SW_SHOWNORMAL);
+    ShowWindowAsync(splash, SW_SHOWNORMAL);
+    SetWindowPos(splash, nullptr, 0, 0, 200, 100, SWP_SHOWWINDOW | SWP_NOZORDER);
+    bool splashHidden = !IsWindowVisible(splash);
+    HWND other = CreateWindowExW(0, L"STATIC", L"fixture unrelated", WS_POPUP,
+        0, 0, 20, 20, nullptr, nullptr, instance, nullptr);
+    ShowWindow(other, SW_SHOWNORMAL);
+    ShowWindow(other, SW_SHOWNORMAL);
+    bool otherVisible = IsWindowVisible(other);
+    DestroyWindow(other);
     wchar_t update[2], eventName[128], file[MAX_PATH];
     bool chain = GetEnvironmentVariableW(L"LINE_TRAY_FIXTURE_UPDATE", update, 2) != 0;
     int code = StartChild(L"current\\LINE.exe", chain ? L"--fixture-update" : L"run --booting", 0);
+    DestroyWindow(splash);
+    if (!splashHidden || !otherVisible) code = 26;
     GetEnvironmentVariableW(L"LOCALAPPDATA", file, MAX_PATH);
     wcscat_s(file, L"\\fixture-chain-result.txt");
     FILE* result = nullptr; _wfopen_s(&result, file, L"w");

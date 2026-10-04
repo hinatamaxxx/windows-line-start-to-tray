@@ -17,6 +17,7 @@ static decltype(&ShellExecuteW) RealShellExecuteW = ShellExecuteW;
 static char dllPath[MAX_PATH];
 static wchar_t logPath[MAX_PATH];
 static bool startup = true;
+static bool launcher = false;
 static HWND closing = nullptr;
 static HICON lineIcon = nullptr;
 static bool iconLoaded = false;
@@ -63,6 +64,14 @@ static LRESULT CALLBACK MainProc(HWND window, UINT message, WPARAM wp, LPARAM lp
 }
 
 static bool Suppress(HWND window) {
+    if (startup && launcher && window && !(GetWindowLongPtrW(window, GWL_STYLE) & WS_CHILD)) {
+        wchar_t cls[128] = {};
+        GetClassNameW(window, cls, 128);
+        if (wcscmp(cls, L"SPLASH") == 0) {
+            Log("launcher-splash-suppressed", window);
+            return true;
+        }
+    }
     if (!startup || !IsQtTop(window)) return false;
     if (!IsMain(window)) {
         // The splash has no LINE title. Let initialization continue without showing it.
@@ -112,7 +121,8 @@ static BOOL WINAPI HookSetWindowPos(HWND window, HWND after, int x, int y, int c
 static HWND WINAPI HookCreateWindowExW(DWORD exStyle, LPCWSTR cls, LPCWSTR title, DWORD style,
     int x, int y, int width, int height, HWND parent, HMENU menu, HINSTANCE instance, LPVOID param) {
     bool candidate = startup && !(style & WS_CHILD) && HIWORD(cls) &&
-        wcsncmp(cls, L"Qt", 2) == 0 && wcsstr(cls, L"QWindow");
+        ((launcher && wcscmp(cls, L"SPLASH") == 0) ||
+        (!launcher && wcsncmp(cls, L"Qt", 2) == 0 && wcsstr(cls, L"QWindow")));
     bool visible = candidate && (style & WS_VISIBLE);
     HWND window = RealCreateWindowExW(exStyle, cls, title, visible ? style & ~WS_VISIBLE : style,
         x, y, width, height, parent, menu, instance, param);
@@ -277,15 +287,16 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
     GetModuleFileNameW(nullptr, executable, MAX_PATH);
     LPCWSTR name = wcsrchr(executable, L'\\');
     bool isLine = name && _wcsicmp(name + 1, L"LINE.exe") == 0;
+    launcher = name && _wcsicmp(name + 1, L"LineLauncher.exe") == 0;
     bool isUpdater = name && _wcsicmp(name + 1, L"LineUpdater.exe") == 0;
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
-    if (isLine) {
+    if (isLine || launcher) {
         DetourAttach(&(PVOID&)RealCreateWindowExW, HookCreateWindowExW);
         DetourAttach(&(PVOID&)RealShowWindow, HookShowWindow);
         DetourAttach(&(PVOID&)RealShowWindowAsync, HookShowWindowAsync);
         DetourAttach(&(PVOID&)RealSetWindowPos, HookSetWindowPos);
-        DetourAttach(&(PVOID&)RealNotifyIcon, HookNotifyIcon);
+        if (isLine) DetourAttach(&(PVOID&)RealNotifyIcon, HookNotifyIcon);
     }
     // LINE can replace itself through LineUpdater during startup. Propagate the
     // hook from LINE and the updater too, so the updated process remains covered.

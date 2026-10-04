@@ -7,7 +7,7 @@ Windows版LINEを通知領域で起動は、LINE本体をディスク上で書�
 | ファイル | 役割 |
 | --- | --- |
 | `LineTrayStart.exe` | LINE本来のランチャーを、補助DLLを読み込む状態で起動する |
-| `LineTrayHook32.dll` | 32bitのランチャーからLINE本体へ、補助DLLの読み込みを引き継ぐ |
+| `LineTrayHook32.dll` | 32bitのランチャーの接続画面を抑え、LINE本体へ補助DLLの読み込みを引き継ぐ |
 | `LineTrayHook64.dll` | 64bitのLINE本体で、起動時の表示要求と通知領域アイコンの登録を処理する |
 | `Setup.exe` | セットアップ・復元・手動起動の画面を提供する |
 | `Install.ps1` / `Uninstall.ps1` | 導入時と復元時だけ、自動起動の登録を変更する |
@@ -25,6 +25,8 @@ Codexの実行環境から起動した子プロセスでは、レジストリと
 実機の確認では、`Win32_StartupCommand` と `StdRegProv` で起動先を読み取り、`CIM_DataFile` と通常プロセスからのファイル確認で、実際のLocalAppDataへ補助EXEとDLLが存在することを確かめています。`GetCurrentPackageFullName` はこの環境で隔離されたプロセスでも「パッケージなし」を返したため、隔離判定には使っていません。
 
 ## 起動から通知領域まで
+
+preview.7では、ランチャーが作る `SPLASH` クラスの接続画面にも表示制御を適用します。2026年10月4日の実機観測で、旧版では `LineLauncher.exe` のこの画面が表示されることを確認しました。`CreateWindowExW` の `WS_VISIBLE` を外し、`ShowWindow` / `ShowWindowAsync` / `SetWindowPos` の表示要求も抑えます。対象はランチャー内の専用クラスに限定し、接続処理や他のウィンドウには変更を加えません。
 
 1. Windowsのユーザー別スタートアップから `LineTrayStart.exe` を起動します。
 2. `DetourCreateProcessWithDllExW` で `LineLauncher.exe --booting` を起動します。補助DLLは、アプリの通常の処理が始まる前に読み込まれます。

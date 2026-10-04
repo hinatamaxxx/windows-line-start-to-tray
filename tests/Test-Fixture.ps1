@@ -24,6 +24,7 @@ try {
             if ([IO.File]::ReadAllText((Join-Path $Root 'fixture-chain-result.txt')).Trim() -ne 'exit=0') { throw 'Fixture chain reported failure.' }
             if ([IO.File]::ReadAllText((Join-Path $Root 'fixture-result.txt')).Trim() -ne 'splashHidden=1 initiallyHidden=1 closeHidden=1 reopened=1') { throw 'Display suppression or reopening failed.' }
             $events = [IO.File]::ReadAllText($log)
+            if ($events -notmatch 'launcher-splash-suppressed') { throw 'Launcher connection splash was not covered.' }
             if ($events -match 'injection-failed') { throw 'A child injection failed.' }
             if ($updateChain -and ($events -notmatch 'updater-hook-attached' -or $events -notmatch 'ansi-child-injected' -or ([regex]::Matches($events,'line-hook-attached')).Count -ne 2)) {
                 throw 'The updated LINE did not inherit the hook through both architectures and ANSI process creation.'
