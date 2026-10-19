@@ -79,6 +79,14 @@ static bool Suppress(HWND window) {
         return true;
     }
     if (!closing) {
+        LONG style = static_cast<LONG>(GetWindowLongPtrW(window, GWL_STYLE));
+        if (!(style & WS_MAXIMIZEBOX)) {
+            // LINE's login screen shares the main window's class and title but cannot be
+            // maximized. Show it so a logged-out start does not silently sit in the tray.
+            Log("startup-login-shown", window, style);
+            startup = false;
+            return false;
+        }
         // Close through Qt's usual close-to-tray handling before its first native show.
         if (!SetWindowSubclass(window, MainProc, 1, 0)) {
             Log("subclass-failed", window, GetLastError());
@@ -92,7 +100,7 @@ static bool Suppress(HWND window) {
             closing = nullptr;
             return false;
         }
-        Log("startup-show-suppressed", window);
+        Log("startup-show-suppressed", window, style);
     }
     return window == closing;
 }
@@ -127,7 +135,7 @@ static HWND WINAPI HookCreateWindowExW(DWORD exStyle, LPCWSTR cls, LPCWSTR title
     HWND window = RealCreateWindowExW(exStyle, cls, title, visible ? style & ~WS_VISIBLE : style,
         x, y, width, height, parent, menu, instance, param);
     if (startup && window && !(style & WS_CHILD)) Log("create-top-window", window, style);
-    if (visible) Suppress(window);
+    if (visible && !Suppress(window)) RealShowWindow(window, SW_SHOWNORMAL);
     return window;
 }
 

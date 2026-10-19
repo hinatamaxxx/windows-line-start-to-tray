@@ -92,9 +92,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int) {
     ShowWindow(splash, SW_SHOWNORMAL);
     SetWindowPos(splash, nullptr, 0, 0, 200, 100, SWP_SHOWWINDOW | SWP_NOZORDER);
     bool splashHidden = !IsWindowVisible(splash);
-    HWND window = CreateWindowExW(0, cls.lpszClassName, L"LINE", WS_OVERLAPPEDWINDOW,
+    // LINE's login screen has the main window's class and title but no maximize box.
+    wchar_t login[2];
+    bool loginScreen = GetEnvironmentVariableW(L"LINE_TRAY_FIXTURE_LOGIN", login, 2) != 0;
+    HWND window = CreateWindowExW(0, cls.lpszClassName, L"LINE",
+        loginScreen ? WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX : WS_OVERLAPPEDWINDOW,
         0, 0, 400, 300, nullptr, nullptr, instance, nullptr);
     ShowWindow(window, SW_SHOWNORMAL);
+    if (loginScreen) {
+        bool loginVisible = IsWindowVisible(window) != FALSE;
+        MSG queued;
+        while (PeekMessageW(&queued, nullptr, 0, 0, PM_REMOVE)) DispatchMessageW(&queued);
+        loginVisible = loginVisible && IsWindowVisible(window) && closes == 0;
+        wchar_t file[MAX_PATH]; GetEnvironmentVariableW(L"LOCALAPPDATA", file, MAX_PATH);
+        wcscat_s(file, L"\\fixture-result.txt");
+        FILE* result = nullptr; _wfopen_s(&result, file, L"w");
+        if (result) { fprintf(result, "splashHidden=%d loginVisible=%d\n", splashHidden, loginVisible); fclose(result); }
+        DestroyWindow(splash);
+        DestroyWindow(window);
+        return splashHidden && loginVisible ? 0 : 22;
+    }
     bool initiallyHidden = !IsWindowVisible(window);
     MSG message;
     // Drain the fixture's queued WM_CLOSE. The production helper has no message loop.

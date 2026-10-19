@@ -33,6 +33,7 @@ preview.7では、ランチャーが作る `SPLASH` クラスの接続画面に�
 3. ランチャー・LINE本体・更新関連プロセスの `ShellExecuteExW` / `ShellExecuteW` / `CreateProcessW` / `CreateProcessA` をフックし、`LINE.exe`、`LineLauncher.exe`、`LineUpdater.exe`、`LineAppMgr.exe` の起動にDLLを引き継ぎます。他の名前の実行ファイルは元のAPIへ渡します。32bitと64bitをまたぐ起動にはDetoursの対応機能を利用します。実際の32bit更新プログラムで使われているANSI版の `CreateProcessA` にも対応します。
 4. LINE本体の `CreateWindowExW`、`ShowWindow`、`ShowWindowAsync`、`SetWindowPos` をフックします。起動中のQtのトップレベルウィンドウについて、作成時の `WS_VISIBLE`、表示呼び出し、`SWP_SHOWWINDOW` を抑制します。
 5. 起動画面は非表示のまま初期化を続けます。タイトルが `LINE` のメインウィンドウでは、最初の表示要求を抑えた後に `WM_CLOSE` を送ります。LINE自身が通常の「閉じる」処理を行い、通知領域へ移ります。
+   - ログアウト状態で起動した場合、LINEはメイン画面と同じクラス・同じタイトル `LINE` のウィンドウにログイン画面を出します。表示要求の時点で、ログイン済みのメイン画面には `WS_MAXIMIZEBOX` があり（実機で `0x86CF0000`）、ログイン画面にはありません（`0x86CE0000`）。最大化ボタンのない場合はログイン画面とみなし、`startup-login-shown` を記録して表示を許可し、起動時の抑制を終了します。
 6. 閉じる処理の完了後、起動時の表示抑制を解除します。通知領域アイコンをユーザーがクリックした場合も解除するため、以後のユーザー操作を受け付けます。
 
 Qtのクラス名やメインウィンドウの識別はLINEの内部実装に依存します。LINEの更新後も必ず同じ動作になるとは限りません。

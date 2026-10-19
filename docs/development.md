@@ -7,7 +7,7 @@
 - Windowsに含まれる.NET Framework 4系のC#コンパイラー、Windows PowerShell 5.1
 - Git
 
-`build.cmd` はVisual Studio 2022 Communityの標準インストール先を使用します。別の場所へ導入している場合は `VSROOT` を設定してください。
+`build.cmd` と `tests/BuildFixture.cmd` はVisual Studio 2022 Communityの標準インストール先を使用します。別の場所やBuild Toolsへ導入している場合は `VSROOT` を設定してください。
 
 ## 配布EXEをビルドする
 
@@ -57,7 +57,7 @@ cmd.exe /c tests\BuildFixture.cmd
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Fixture.ps1
 ```
 
-通常の起動に加え、LINE → 管理プロセス → 32bit更新プログラム → 更新後の64bit LINEという経路を模擬します。`ShellExecuteExW`、`CreateProcessW`、`CreateProcessA`を経由したDLLの引き継ぎを確認し、終了は名前付きイベントで待ちます。実際のLINE、ユーザーの起動設定、認証データは変更しません。セットアップテストでは、LINE自身のRun値の上書き、preview.4/.5からの移行、独立した起動項目と元の設定の復元を確認します。
+通常の起動とログアウト状態の起動（最大化ボタンのないログイン画面）に加え、LINE → 管理プロセス → 32bit更新プログラム → 更新後の64bit LINEという経路を模擬します。`ShellExecuteExW`、`CreateProcessW`、`CreateProcessA`を経由したDLLの引き継ぎを確認し、終了は名前付きイベントで待ちます。実際のLINE、ユーザーの起動設定、認証データは変更しません。セットアップテストでは、LINE自身のRun値の上書き、preview.4/.5からの移行、独立した起動項目と元の設定の復元を確認します。
 
 実際のLINEの表示を観測する場合は、LINEを通知領域から通常終了した後に、次を実行します。
 

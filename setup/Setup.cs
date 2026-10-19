@@ -16,7 +16,7 @@ using Microsoft.Win32.SafeHandles;
 
 internal static class Program
 {
-    internal const string Version = "0.2.0-preview.7";
+    internal const string Version = "0.2.0-preview.8";
     internal const string StartupEntry = "WindowsLineStartToTray";
     internal static readonly string Home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LineTrayStartup");
     internal static readonly string Shortcut = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Windows版LINEを通知領域で起動.lnk");
