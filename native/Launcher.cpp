@@ -22,6 +22,40 @@ static void Log(const char* event, DWORD value = 0) {
     }
 }
 
+// LINE keeps the hook DLLs loaded while it runs. Inject copies from the data folder so
+// the installed files stay replaceable by updates. Each build gets its own folder.
+static bool PrepareHook(char* hook, size_t size) {
+    wchar_t source[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, source, MAX_PATH);
+    wchar_t* tail = wcsrchr(source, L'\\');
+    if (!tail) return false;
+    wcscpy_s(tail + 1, MAX_PATH - (tail + 1 - source), L"LineTrayHook32.dll");
+    WIN32_FILE_ATTRIBUTE_DATA info = {};
+    if (!GetFileAttributesExW(source, GetFileExInfoStandard, &info)) return false;
+    wchar_t folder[MAX_PATH] = {};
+    if (!GetEnvironmentVariableW(L"LOCALAPPDATA", folder, MAX_PATH)) return false;
+    wcscat_s(folder, L"\\LineTrayStartup");
+    CreateDirectoryW(folder, nullptr);
+    wcscat_s(folder, L"\\hook");
+    CreateDirectoryW(folder, nullptr);
+    wchar_t name[32];
+    swprintf_s(name, L"\\%08lx%08lx", info.ftLastWriteTime.dwHighDateTime, info.ftLastWriteTime.dwLowDateTime);
+    wcscat_s(folder, name);
+    CreateDirectoryW(folder, nullptr);
+    static const wchar_t* files[] = { L"LineTrayHook32.dll", L"LineTrayHook64.dll" };
+    for (const wchar_t* file : files) {
+        wchar_t from[MAX_PATH], to[MAX_PATH];
+        wcscpy_s(from, source);
+        wcscpy_s(wcsrchr(from, L'\\') + 1, MAX_PATH - (wcsrchr(from, L'\\') + 1 - from), file);
+        swprintf_s(to, L"%s\\%s", folder, file);
+        // An existing copy may be loaded by a running LINE; it is the same build.
+        if (GetFileAttributesW(to) == INVALID_FILE_ATTRIBUTES && !CopyFileW(from, to, TRUE)) return false;
+    }
+    wchar_t target[MAX_PATH];
+    swprintf_s(target, L"%s\\LineTrayHook32.dll", folder);
+    return WideCharToMultiByte(CP_ACP, 0, target, -1, hook, static_cast<int>(size), nullptr, nullptr) != 0;
+}
+
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
     Log("helper-start");
     wchar_t launcher[MAX_PATH] = {}, command[MAX_PATH + 32] = {};
@@ -32,10 +66,14 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
     wcscpy_s(directory, launcher);
     *wcsrchr(directory, L'\\') = L'\0';
     char hook[MAX_PATH] = {};
-    GetModuleFileNameA(nullptr, hook, MAX_PATH);
-    char* tail = strrchr(hook, '\\');
-    if (!tail) return 1;
-    strcpy_s(tail + 1, MAX_PATH - (tail + 1 - hook), "LineTrayHook32.dll");
+    if (!PrepareHook(hook, MAX_PATH)) {
+        DWORD error = GetLastError();
+        Log("hook-copy-failed", error);
+        wchar_t message[256];
+        swprintf_s(message, L"LINEを通知領域で起動するための準備に失敗しました (Windows error %lu)。", error);
+        MessageBoxW(nullptr, message, L"LINEを最小化して起動", MB_OK | MB_ICONERROR);
+        return 1;
+    }
     STARTUPINFOW si = { sizeof(si) };
     si.dwFlags = STARTF_USESHOWWINDOW;
     si.wShowWindow = SW_HIDE;
@@ -46,7 +84,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
         Log("launcher-create-failed", error);
         wchar_t message[256];
         swprintf_s(message, L"LINEを通知領域で起動できませんでした (Windows error %lu)。", error);
-        MessageBoxW(nullptr, message, L"Windows版LINEを通知領域で起動", MB_OK | MB_ICONERROR);
+        MessageBoxW(nullptr, message, L"LINEを最小化して起動", MB_OK | MB_ICONERROR);
         return 1;
     }
     Log("launcher-created", pi.dwProcessId);

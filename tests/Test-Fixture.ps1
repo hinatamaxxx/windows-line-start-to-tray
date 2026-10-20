@@ -32,6 +32,7 @@ try {
             if ($loginScreen -and ($events -notmatch 'startup-login-shown' -or $events -match 'startup-show-suppressed')) { throw 'The login screen was not shown.' }
             if ($events -notmatch 'launcher-splash-suppressed') { throw 'Launcher connection splash was not covered.' }
             if ($events -match 'injection-failed') { throw 'A child injection failed.' }
+            if (!(Get-ChildItem (Join-Path $Root 'LineTrayStartup\hook\*\LineTrayHook64.dll') -ErrorAction SilentlyContinue)) { throw 'The hook DLLs were not copied to the data folder before injection.' }
             if ($updateChain -and ($events -notmatch 'updater-hook-attached' -or $events -notmatch 'ansi-child-injected' -or ([regex]::Matches($events,'line-hook-attached')).Count -ne 2)) {
                 throw 'The updated LINE did not inherit the hook through both architectures and ANSI process creation.'
             }

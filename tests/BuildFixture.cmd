@@ -13,4 +13,6 @@ call "%VSROOT%\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul
 cl /nologo /std:c++17 /W4 /O2 /MT /DTEST_APP_MANAGER tests\Fixture.cpp /Fobuild\FixtureManager64.obj /Febuild\fixture\LINE\bin\current\LineAppMgr.exe /link /MANIFEST:EMBED /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /SUBSYSTEM:WINDOWS user32.lib shell32.lib
 if errorlevel 1 exit /b 1
 cl /nologo /std:c++17 /W4 /O2 /MT tests\Fixture.cpp /Fobuild\Fixture64.obj /Febuild\fixture\LINE\bin\current\LINE.exe /link /MANIFEST:EMBED /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /SUBSYSTEM:WINDOWS user32.lib shell32.lib
+if errorlevel 1 exit /b 1
+cl /nologo /std:c++17 /W4 /wd4505 /O2 /MT /EHsc /I third_party\Detours\include tests\TrayIconTest.cpp /Fobuild\TrayIconTest.obj /Febuild\TrayIconTest.exe /link third_party\Detours\lib.X64\detours.lib user32.lib shell32.lib comctl32.lib gdi32.lib
 exit /b %errorlevel%

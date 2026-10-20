@@ -16,6 +16,8 @@ static decltype(&ShellExecuteExW) RealShellExecuteExW = ShellExecuteExW;
 static decltype(&ShellExecuteW) RealShellExecuteW = ShellExecuteW;
 static char dllPath[MAX_PATH];
 static wchar_t logPath[MAX_PATH];
+// Where the tray logo comes from: LINE.exe in production, a test icon in TrayIconTest.
+static wchar_t logoSource[MAX_PATH];
 static bool startup = true;
 static bool launcher = false;
 static HWND closing = nullptr;
@@ -153,23 +155,154 @@ static LRESULT CALLBACK TrayProc(HWND window, UINT message, WPARAM wp, LPARAM lp
     return DefSubclassProc(window, message, wp, lp);
 }
 
+// Tray icon: the tool shows the logo embedded in LINE.exe instead of LINE's own tray artwork,
+// but keeps the states LINE draws into its icon. LINE's icon is grey while connecting and
+// gets an orange "N" badge when there are unread messages; both are read from its pixels.
+struct Pixels { int width = 0, height = 0; BYTE* data = nullptr; };
+
+static void FreePixels(Pixels& pixels) {
+    if (pixels.data) HeapFree(GetProcessHeap(), 0, pixels.data);
+    pixels = Pixels();
+}
+
+// Top-down BGRA with straight alpha, as stored in 32-bit icons.
+static bool ReadIcon(HICON icon, Pixels& out) {
+    ICONINFO info = {};
+    if (!icon || !GetIconInfo(icon, &info)) return false;
+    BITMAP bm = {};
+    bool ok = false;
+    if (info.hbmColor && GetObjectW(info.hbmColor, sizeof(bm), &bm) && bm.bmBitsPixel == 32 &&
+        bm.bmWidth > 0 && bm.bmWidth <= 256 && bm.bmHeight > 0 && bm.bmHeight <= 256) {
+        BITMAPINFOHEADER header = { sizeof(header), bm.bmWidth, -bm.bmHeight, 1, 32, BI_RGB };
+        out.width = bm.bmWidth; out.height = bm.bmHeight;
+        out.data = static_cast<BYTE*>(HeapAlloc(GetProcessHeap(), 0, bm.bmWidth * bm.bmHeight * 4));
+        HDC dc = GetDC(nullptr);
+        ok = out.data && GetDIBits(dc, info.hbmColor, 0, bm.bmHeight, out.data, reinterpret_cast<BITMAPINFO*>(&header), DIB_RGB_COLORS);
+        ReleaseDC(nullptr, dc);
+        if (!ok) FreePixels(out);
+    }
+    if (info.hbmColor) DeleteObject(info.hbmColor);
+    if (info.hbmMask) DeleteObject(info.hbmMask);
+    return ok;
+}
+
+static HICON MakeIcon(const Pixels& pixels) {
+    BITMAPINFOHEADER header = { sizeof(header), pixels.width, -pixels.height, 1, 32, BI_RGB };
+    void* bits = nullptr;
+    HBITMAP color = CreateDIBSection(nullptr, reinterpret_cast<BITMAPINFO*>(&header), DIB_RGB_COLORS, &bits, nullptr, 0);
+    if (!color) return nullptr;
+    memcpy(bits, pixels.data, pixels.width * pixels.height * 4);
+    HBITMAP mask = CreateBitmap(pixels.width, pixels.height, 1, 1, nullptr);
+    ICONINFO info = { TRUE, 0, 0, mask, color };
+    HICON icon = mask ? CreateIconIndirect(&info) : nullptr;
+    DeleteObject(color);
+    if (mask) DeleteObject(mask);
+    return icon;
+}
+
+// Investigation aid: with a tray-dump.on file next to the log, each icon LINE registers and
+// each icon the tool registers instead is saved as a BMP.
+static bool dumpTray = false;
+static void Dump(const Pixels& pixels, const wchar_t* kind) {
+    static int count = 0;
+    if (!dumpTray || !pixels.data || count >= 200) return;
+    wchar_t path[MAX_PATH];
+    wcscpy_s(path, logPath);
+    swprintf_s(wcsrchr(path, L'\\') + 1, 64, L"tray-%03d-%s.bmp", ++count, kind);
+    DWORD bytes = pixels.width * pixels.height * 4;
+    BITMAPINFOHEADER header = { sizeof(header), pixels.width, -pixels.height, 1, 32, BI_RGB };
+    BITMAPFILEHEADER file = { 0x4D42, sizeof(file) + sizeof(header) + bytes, 0, 0, sizeof(file) + sizeof(header) };
+    HANDLE out = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (out == INVALID_HANDLE_VALUE) return;
+    DWORD written;
+    WriteFile(out, &file, sizeof(file), &written, nullptr);
+    WriteFile(out, &header, sizeof(header), &written, nullptr);
+    WriteFile(out, pixels.data, bytes, &written, nullptr);
+    CloseHandle(out);
+}
+
+static bool IsBadge(const BYTE* p) {
+    int b = p[0], g = p[1], r = p[2];
+    return p[3] > 40 && r > 190 && r - g > 60 && r - b > 90 && g > 30;
+}
+
+// Builds the logo icon at the size of LINE's icon with LINE's state applied.
+// state: 1 = connecting (grey), 2 = unread badge.
+static HICON ComposeTrayIcon(HICON original, LONG* state) {
+    Pixels source, logo;
+    HICON result = nullptr;
+    *state = 0;
+    if (!ReadIcon(original, source)) return nullptr;
+    int w = source.width, h = source.height;
+    HICON logoIcon = nullptr;
+    UINT id = 0;
+    if (PrivateExtractIconsW(logoSource, 0, w, h, &logoIcon, &id, 1, 0) == 1 && logoIcon) {
+        if (ReadIcon(logoIcon, logo) && (logo.width != w || logo.height != h)) FreePixels(logo);
+        DestroyIcon(logoIcon);
+    }
+    if (logo.data) {
+        int opaque = 0, colourful = 0, badge = 0, left = w, top = h, right = -1, bottom = -1;
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+            const BYTE* p = source.data + (y * w + x) * 4;
+            if (p[3] < 40) continue;
+            opaque++;
+            int high = max(p[0], max(p[1], p[2])), low = min(p[0], min(p[1], p[2]));
+            if (high - low > 40) colourful++;
+            if (IsBadge(p)) { badge++; left = min(left, x); top = min(top, y); right = max(right, x); bottom = max(bottom, y); }
+        }
+        if (opaque > 0 && colourful * 20 < opaque) {
+            *state |= 1;
+            for (int i = 0; i < w * h; i++) {
+                BYTE* p = logo.data + i * 4;
+                int lum = (p[2] * 299 + p[1] * 587 + p[0] * 114) / 1000;
+                // LINE's own grey icon is light (about #BEBEBE behind a white bubble).
+                p[0] = p[1] = p[2] = static_cast<BYTE>(96 + lum * 5 / 8);
+            }
+        }
+        if (badge >= 4) {
+            *state |= 2;
+            // Copy LINE's badge: its orange pixels and the white letter inside them.
+            for (int y = max(0, top - 1); y <= min(h - 1, bottom + 1); y++)
+                for (int x = max(0, left - 1); x <= min(w - 1, right + 1); x++) {
+                    const BYTE* p = source.data + (y * w + x) * 4;
+                    bool inside = x > left && x < right && y > top && y < bottom;
+                    bool white = p[0] > 200 && p[1] > 200 && p[2] > 200;
+                    bool green = p[1] > p[2] + 25 && p[1] > p[0] + 25;
+                    if (p[3] > 40 && !green && (IsBadge(p) || (inside && white) || p[2] > p[1] + 30))
+                        memcpy(logo.data + (y * w + x) * 4, p, 4);
+                }
+        }
+        result = MakeIcon(logo);
+        Dump(source, L"line");
+        Dump(logo, L"tool");
+    }
+    FreePixels(source);
+    FreePixels(logo);
+    return result;
+}
+
 static BOOL WINAPI HookNotifyIcon(DWORD operation, PNOTIFYICONDATAW original) {
     if (original && operation == NIM_ADD && (original->uFlags & NIF_MESSAGE)) {
         SetWindowSubclass(original->hWnd, TrayProc, 2, original->uCallbackMessage);
     }
     if (original && (operation == NIM_ADD || operation == NIM_MODIFY) && (original->uFlags & NIF_ICON)) {
-        if (!iconLoaded) {
+        static LONG lastState = -1;
+        LONG state = 0;
+        HICON composed = ComposeTrayIcon(original->hIcon, &state);
+        if (!composed && !iconLoaded) {
             iconLoaded = true;
-            wchar_t executable[MAX_PATH];
-            GetModuleFileNameW(nullptr, executable, MAX_PATH);
-            ExtractIconExW(executable, 0, nullptr, &lineIcon, 1);
+            ExtractIconExW(logoSource, 0, nullptr, &lineIcon, 1);
         }
-        if (lineIcon) {
+        HICON icon = composed ? composed : lineIcon;
+        if (icon) {
             NOTIFYICONDATAW changed = {};
             memcpy(&changed, original, min(original->cbSize, static_cast<DWORD>(sizeof(changed))));
-            changed.hIcon = lineIcon;
-            Log("tray-icon", original->hWnd, operation);
-            return RealNotifyIcon(operation, &changed);
+            changed.hIcon = icon;
+            if (state != lastState) { Log("tray-state", original->hWnd, composed ? state : -1); lastState = state; }
+            BOOL result = RealNotifyIcon(operation, &changed);
+            // The shell keeps its own copy of the icon.
+            if (composed) DestroyIcon(composed);
+            return result;
         }
     }
     return RealNotifyIcon(operation, original);
@@ -283,6 +416,7 @@ static HINSTANCE WINAPI HookShellExecuteW(HWND window, LPCWSTR verb, LPCWSTR fil
     return info.hInstApp;
 }
 
+#ifndef LINETRAY_COMPOSE_TEST
 BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
     if (DetourIsHelperProcess()) return TRUE;
     if (reason != DLL_PROCESS_ATTACH) return TRUE;
@@ -293,10 +427,15 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
     wcscat_s(logPath, L"\\LineTrayStartup\\diagnostic.log");
     wchar_t executable[MAX_PATH];
     GetModuleFileNameW(nullptr, executable, MAX_PATH);
+    wcscpy_s(logoSource, executable);
     LPCWSTR name = wcsrchr(executable, L'\\');
     bool isLine = name && _wcsicmp(name + 1, L"LINE.exe") == 0;
     launcher = name && _wcsicmp(name + 1, L"LineLauncher.exe") == 0;
     bool isUpdater = name && _wcsicmp(name + 1, L"LineUpdater.exe") == 0;
+    wchar_t marker[MAX_PATH];
+    wcscpy_s(marker, logPath);
+    wcscpy_s(wcsrchr(marker, L'\\') + 1, 32, L"tray-dump.on");
+    dumpTray = GetFileAttributesW(marker) != INVALID_FILE_ATTRIBUTES;
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
     if (isLine || launcher) {
@@ -316,3 +455,4 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
     Log(isLine ? "line-hook-attached" : isUpdater ? "updater-hook-attached" : "launcher-hook-attached", nullptr, error);
     return error == NO_ERROR;
 }
+#endif
