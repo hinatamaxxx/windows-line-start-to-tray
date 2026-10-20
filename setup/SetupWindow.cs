@@ -143,7 +143,7 @@ internal sealed class SetupWindow : Window
     {
         if (!undo && LineRunning())
         {
-            SetState("先にLINEを終了してください", "通知領域のLINEを右クリック →「終了」の後、もう一度「セットアップ」を押してください。×ボタンだけでは終了しません。");
+            SetState("先にLINEを終了してください", "通知領域のLINEアイコンを右クリックして「終了」を選んでから、もう一度「セットアップ」を押してください。×ボタンだけでは終了しません。");
             return;
         }
         if (undo && MessageBox.Show(this, "自動起動設定を導入前の状態に戻します。\nLINEのログイン情報は変更しません。続けますか？", "設定を元に戻す", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
@@ -164,7 +164,7 @@ internal sealed class SetupWindow : Window
                     Program.RemoveLegacyShortcut(Program.Home, Program.Shortcut);
                 }
             });
-            if (undo) SetState("設定を元に戻しました", "LINEを通常終了して起動し直すと、通常の動作に戻ります。ファイルの削除方法は「使い方」をご覧ください。");
+            if (undo) SetState("設定を元に戻しました", "LINEを通知領域から終了して起動し直すと、通常の動作に戻ります。ファイルの削除方法は「使い方」をご覧ください。");
             else SetState("セットアップが完了しました", "次回サインインから自動起動します。「LINEを起動」で、今すぐ動作を確認できます。");
         }
         catch (Exception error)
@@ -188,7 +188,7 @@ internal sealed class SetupWindow : Window
         try
         {
             Process.Start(new ProcessStartInfo(Path.Combine(Program.Home, "LineTrayStart.exe")) { UseShellExecute = false, CreateNoWindow = true });
-            SetState("LINEの起動を開始しました", "時計の近くにアイコンが現れたら、ダブルクリックしてLINEを開けます。");
+            SetState("LINEの起動を開始しました", "時計の近くにアイコンが現れたら、ダブルクリックしてLINEを開けます。ログアウトしている場合は、ログイン画面が表示されます。");
         }
         catch (Exception error) { SetState("LINEを起動できませんでした", error.Message); }
     }

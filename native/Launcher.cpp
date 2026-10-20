@@ -45,7 +45,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
         DWORD error = GetLastError();
         Log("launcher-create-failed", error);
         wchar_t message[256];
-        swprintf_s(message, L"LINEの通知領域起動に失敗しました (Windows error %lu)。", error);
+        swprintf_s(message, L"LINEを通知領域で起動できませんでした (Windows error %lu)。", error);
         MessageBoxW(nullptr, message, L"Windows版LINEを通知領域で起動", MB_OK | MB_ICONERROR);
         return 1;
     }
