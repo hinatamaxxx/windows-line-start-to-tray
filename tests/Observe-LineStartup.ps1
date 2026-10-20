@@ -1,4 +1,4 @@
-param([string]$Launcher = "$env:LOCALAPPDATA\LineTrayStartup\LineTrayStart.exe", [string]$Arguments = '')
+param([string]$Launcher = "$env:LOCALAPPDATA\WindowsLineStartToTray\current\LineTrayStart.exe", [string]$Arguments = '')
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;

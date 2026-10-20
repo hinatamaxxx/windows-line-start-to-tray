@@ -1,0 +1,36 @@
+<Window x:Class="LineTray.UninstallDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="LINEを最小化して起動 のアンインストール" Width="500" SizeToContent="Height"
+        ResizeMode="NoResize" WindowStartupLocation="CenterScreen" UseLayoutRounding="True" Icon="app.ico"
+        Background="{DynamicResource CardBrush}" FontFamily="Segoe UI Variable Text, Segoe UI, Yu Gothic UI" FontSize="13"
+        TextOptions.TextFormattingMode="Ideal">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Styles.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+  <DockPanel>
+    <Border DockPanel.Dock="Bottom" Background="{DynamicResource BandBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="24,18">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <Button x:Name="ProceedButton" Style="{StaticResource AccentButton}" MinWidth="120"/>
+        <Button x:Name="CancelButton" Content="キャンセル" IsCancel="True" MinWidth="120" Margin="8,0,0,0"/>
+      </StackPanel>
+    </Border>
+    <StackPanel Margin="24,22,24,22">
+      <TextBlock x:Name="Heading" Text="アンインストールしますか？" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,12"/>
+      <TextBlock Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" LineHeight="20"
+                 Text="本体、スタートメニューと自動起動のショートカット、記録（ログ）を削除します。LINE本体とLINEのログイン情報は削除しません。"/>
+      <Border x:Name="RunningNote" Background="{DynamicResource WarnBackBrush}" CornerRadius="6" Padding="12,10" Margin="0,14,0,0" Visibility="Collapsed">
+        <TextBlock Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" LineHeight="19"
+                   Text="LINEが起動中のため、一部のファイルは削除できません。通知領域のLINEアイコンを右クリックして「終了」してから続けると、すべて削除できます。"/>
+      </Border>
+      <TextBlock Foreground="{DynamicResource SecondaryBrush}" TextWrapping="Wrap" LineHeight="19" FontSize="12" Margin="0,14,0,0"
+                 Text="LINE本体の自動起動をオフにしていた場合は、アンインストールのあとに、Windowsのスタートアップ設定でLINEをオンに戻してください。"/>
+      <CheckBox x:Name="KeepBox" Content="設定とデータを残す（再インストールしたときに引き継ぐ）" Margin="0,18,0,0"/>
+      <TextBlock x:Name="CountdownText" Foreground="{DynamicResource SecondaryBrush}" FontSize="12" Margin="0,14,0,0" Visibility="Collapsed"/>
+    </StackPanel>
+  </DockPanel>
+</Window>

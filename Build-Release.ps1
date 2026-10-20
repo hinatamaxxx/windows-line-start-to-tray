@@ -1,25 +1,34 @@
-﻿param([switch]$SkipNativeBuild)
+﻿param([switch]$SkipNativeBuild, [string]$Version = '0.3.0-preview.1', [string]$OutputDir = 'release')
 $ErrorActionPreference = 'Stop'
-$version = '0.2.0-preview.9'
+$version = $Version
 Push-Location $PSScriptRoot
+# Native tools use the process working directory, which Push-Location does not change.
+$previousDirectory = [Environment]::CurrentDirectory
+[Environment]::CurrentDirectory = $PSScriptRoot
 try {
     if (!$SkipNativeBuild) {
-        & cmd.exe /c build.cmd
+        & cmd.exe /c (Join-Path $PSScriptRoot 'build.cmd')
         if ($LASTEXITCODE -ne 0) { throw 'Native build failed.' }
     }
-    New-Item -ItemType Directory -Path release -Force | Out-Null
-    $output = Join-Path $PSScriptRoot "release\WindowsLineStartToTray-Setup-$version.exe"
-    $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-    $wpf = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\WPF'
-    $arguments = @('/nologo', '/target:winexe', '/platform:x64', '/optimize+', '/utf8output', '/win32manifest:setup\app.manifest', '/win32icon:setup\app.ico', '/resource:setup\app.ico,AppIcon.ico', "/out:$output",
-        "/reference:$wpf\PresentationFramework.dll", "/reference:$wpf\PresentationCore.dll", "/reference:$wpf\WindowsBase.dll", '/reference:System.Xaml.dll', '/reference:System.Core.dll', '/reference:System.Management.dll',
-        '/resource:Install.ps1,Install.ps1', '/resource:Uninstall.ps1,Uninstall.ps1', '/resource:StartupRegistry.ps1,StartupRegistry.ps1', '/resource:setup\GUIDE.txt,GUIDE.txt',
-        '/resource:dist\LineTrayStart.exe,LineTrayStart.exe', '/resource:dist\LineTrayHook32.dll,LineTrayHook32.dll',
-        '/resource:dist\LineTrayHook64.dll,LineTrayHook64.dll', '/resource:LICENSE,LICENSE.txt',
-        '/resource:third_party\Detours\LICENSE.md,Detours-LICENSE.txt', '/resource:setup\SetupWindow.xaml,SetupWindow.xaml', 'setup\Setup.cs', 'setup\SetupWindow.cs')
-    & $compiler @arguments
-    if ($LASTEXITCODE -ne 0) { throw 'Setup build failed.' }
-    $hash = (Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash.ToLowerInvariant()
-    "$hash  $([IO.Path]::GetFileName($output))" | Set-Content release\SHA256SUMS.txt -Encoding ASCII
-    Write-Output $output
-} finally { Pop-Location }
+    $app = Join-Path $PSScriptRoot 'build\app'
+    if (Test-Path -LiteralPath $app) { Remove-Item -LiteralPath $app -Recurse -Force }
+    & dotnet build app\WindowsLineStartToTray.csproj -c Release -nologo -v q "-p:Version=$version" -o $app
+    if ($LASTEXITCODE -ne 0) { throw 'App build failed.' }
+    Copy-Item dist\LineTrayStart.exe, dist\LineTrayHook32.dll, dist\LineTrayHook64.dll -Destination $app
+    Copy-Item setup\GUIDE.txt -Destination (Join-Path $app '使い方.txt')
+    Copy-Item LICENSE -Destination (Join-Path $app 'LICENSE.txt')
+    Copy-Item third_party\Detours\LICENSE.md -Destination (Join-Path $app 'Detours-LICENSE.txt')
+
+    $release = Join-Path $PSScriptRoot $OutputDir
+    if (Test-Path -LiteralPath $release) { Remove-Item -LiteralPath $release -Recurse -Force }
+    & dotnet tool restore | Out-Null
+    & dotnet vpk pack --packId WindowsLineStartToTray --packVersion $version --packDir $app `
+        --mainExe LineMinimizedStart.exe --packTitle 'LINEを最小化して起動' --packAuthors hinatamaxxx `
+        --runtime win-x64 --icon setup\app.ico --shortcuts StartMenuRoot --noPortable --releaseNotes docs\release-notes.md --outputDir $release
+    if ($LASTEXITCODE -ne 0) { throw 'Velopack packaging failed.' }
+    $setup = Join-Path $release "WindowsLineStartToTray-Setup-$version.exe"
+    Move-Item (Join-Path $release 'WindowsLineStartToTray-win-Setup.exe') $setup
+    $hash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$hash  $([IO.Path]::GetFileName($setup))" | Set-Content (Join-Path $release 'SHA256SUMS.txt') -Encoding ASCII
+    Get-ChildItem $release | ForEach-Object { $_.FullName }
+} finally { [Environment]::CurrentDirectory = $previousDirectory; Pop-Location }

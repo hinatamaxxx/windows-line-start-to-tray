@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>LineMinimizedStart</AssemblyName>
+    <RootNamespace>LineTray</RootNamespace>
+    <ApplicationIcon>..\setup\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PlatformTarget>x64</PlatformTarget>
+    <Version>0.3.0-preview.1</Version>
+    <Product>LINEを最小化して起動</Product>
+    <AssemblyTitle>LINEを最小化して起動</AssemblyTitle>
+    <Company>hinatamaxxx</Company>
+    <Copyright>MIT License</Copyright>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Velopack" Version="1.2.161" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="..\setup\app.ico" Link="app.ico" />
+  </ItemGroup>
+</Project>
