@@ -100,15 +100,15 @@
             <TextBlock x:Name="StatusBadge" Text="未セットアップ" FontSize="11" Foreground="{DynamicResource SoftTextBrush}"/>
           </Border>
         </Grid>
-        <TextBlock Text="画面を出さずに、自動起動。" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,8"/>
-        <TextBlock Text="PCへのサインイン時に、LINEを通知領域へ。&#10;使いたいときは、アイコンをダブルクリックするだけ。" Foreground="{DynamicResource MutedBrush}" FontSize="14" LineHeight="23" Margin="0,0,0,24"/>
+        <TextBlock Text="LINEを画面に出さずに自動起動" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,8"/>
+        <TextBlock Text="PCへのサインイン時に、LINEを通知領域で起動します。&#10;使いたいときは、アイコンをダブルクリックするだけで開けます。" Foreground="{DynamicResource MutedBrush}" FontSize="14" LineHeight="23" Margin="0,0,0,24"/>
         <Border Style="{StaticResource Card}" Margin="0,0,0,16">
           <StackPanel>
             <TextBlock Text="はじめる前に" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,20"/>
             <Grid Margin="0,0,0,18">
               <Grid.ColumnDefinitions><ColumnDefinition Width="40"/><ColumnDefinition/></Grid.ColumnDefinitions>
               <Border Background="{DynamicResource SoftBrush}" CornerRadius="15" Width="28" Height="28" HorizontalAlignment="Left" VerticalAlignment="Top"><TextBlock Text="1" Foreground="{DynamicResource SoftTextBrush}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-              <StackPanel Grid.Column="1"><TextBlock Text="自動ログインをオンにする" FontWeight="SemiBold"/><TextBlock Text="LINE本体の設定で有効にします。" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,5,0,0" TextWrapping="Wrap"/></StackPanel>
+              <StackPanel Grid.Column="1"><TextBlock Text="自動ログインをオンにする" FontWeight="SemiBold"/><TextBlock Text="LINE本体の設定で有効にします。&#10;QRコードでログインすると終了のたびにログアウトされるため、メールアドレスとパスワードなどでログインしてください。" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,5,0,0" TextWrapping="Wrap"/></StackPanel>
             </Grid>
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="40"/><ColumnDefinition/></Grid.ColumnDefinitions>

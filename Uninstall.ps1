@@ -43,4 +43,4 @@ if ($null -ne $backup.Approved) {
 }
 # A later installation must capture the user's then-current settings again.
 Move-Item -LiteralPath $backupPath -Destination (Join-Path $target 'startup-backup.restored.json') -Force
-Write-Output 'LINE本来の自動起動設定に戻しました。LINEを通常終了して再起動するとフックも外れます。'
+Write-Output 'LINE本来の自動起動設定に戻しました。LINEを通知領域から終了して起動し直すと、補助処理も外れます。'
