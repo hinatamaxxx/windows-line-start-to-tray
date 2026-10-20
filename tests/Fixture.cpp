@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <stdio.h>
+#include <dwmapi.h>
 #if !defined(TEST_LAUNCHER) && !defined(TEST_UPDATER) && !defined(TEST_APP_MANAGER)
 static int closes = 0;
 static LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
@@ -112,20 +113,29 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR arguments, int) {
         DestroyWindow(window);
         return splashHidden && loginVisible ? 0 : 22;
     }
-    bool initiallyHidden = !IsWindowVisible(window);
+    // The hook lets the logged-in main window show, cloaked, and closes it once LINE has loaded (here: the five-second fallback).
+    DWORD cloak = 0;
+    DwmGetWindowAttribute(window, DWMWA_CLOAKED, &cloak, sizeof(cloak));
+    bool initiallyCloaked = IsWindowVisible(window) && cloak != 0;
     MSG message;
-    // Drain the fixture's queued WM_CLOSE. The production helper has no message loop.
+    ULONGLONG deadline = GetTickCount64() + 8000;
+    while (closes == 0 && GetTickCount64() < deadline) {
+        if (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) DispatchMessageW(&message);
+        else MsgWaitForMultipleObjects(0, nullptr, FALSE, 50, QS_ALLINPUT);
+    }
     while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) DispatchMessageW(&message);
-    bool closeHidden = !IsWindowVisible(window) && closes == 1;
+    cloak = 0;
+    DwmGetWindowAttribute(window, DWMWA_CLOAKED, &cloak, sizeof(cloak));
+    bool closeHidden = !IsWindowVisible(window) && closes == 1 && cloak == 0;
     ShowWindow(window, SW_SHOWNORMAL);
     bool reopened = IsWindowVisible(window);
     ShowWindow(window, SW_HIDE);
     wchar_t file[MAX_PATH]; GetEnvironmentVariableW(L"LOCALAPPDATA", file, MAX_PATH);
     wcscat_s(file, L"\\fixture-result.txt");
     FILE* result = nullptr; _wfopen_s(&result, file, L"w");
-    if (result) { fprintf(result, "splashHidden=%d initiallyHidden=%d closeHidden=%d reopened=%d\n", splashHidden, initiallyHidden, closeHidden, reopened); fclose(result); }
+    if (result) { fprintf(result, "splashHidden=%d initiallyCloaked=%d closeHidden=%d reopened=%d\n", splashHidden, initiallyCloaked, closeHidden, reopened); fclose(result); }
     DestroyWindow(splash);
     DestroyWindow(window);
-    return splashHidden && initiallyHidden && closeHidden && reopened ? 0 : 22;
+    return splashHidden && initiallyCloaked && closeHidden && reopened ? 0 : 22;
 #endif
 }

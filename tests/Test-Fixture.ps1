@@ -26,7 +26,7 @@ try {
             $process = Start-Process -FilePath (Join-Path $Root 'LineTrayStartup\LineTrayStart.exe') -WindowStyle Hidden -Wait -PassThru
             if ($process.ExitCode -ne 0 -or !$done.WaitOne(20000)) { throw 'The fixture startup chain failed or timed out.' }
             if ([IO.File]::ReadAllText((Join-Path $Root 'fixture-chain-result.txt')).Trim() -ne 'exit=0') { throw 'Fixture chain reported failure.' }
-            $expected = if ($loginScreen) { 'splashHidden=1 loginVisible=1' } else { 'splashHidden=1 initiallyHidden=1 closeHidden=1 reopened=1' }
+            $expected = if ($loginScreen) { 'splashHidden=1 loginVisible=1' } else { 'splashHidden=1 initiallyCloaked=1 closeHidden=1 reopened=1' }
             if ([IO.File]::ReadAllText((Join-Path $Root 'fixture-result.txt')).Trim() -ne $expected) { throw 'Display suppression, login display or reopening failed.' }
             $events = [IO.File]::ReadAllText($log)
             if ($loginScreen -and ($events -notmatch 'startup-login-shown' -or $events -match 'startup-show-suppressed')) { throw 'The login screen was not shown.' }
@@ -37,7 +37,7 @@ try {
                 throw 'The updated LINE did not inherit the hook through both architectures and ANSI process creation.'
             }
             if ($loginScreen) { Write-Output "PASS: loginScreen; splash hidden; login screen shown without closing." }
-            else { Write-Output "PASS: updateChain=$updateChain; splash and main hidden; close handled; user reopening works." }
+            else { Write-Output "PASS: updateChain=$updateChain; splash hidden; main shown cloaked and closed; user reopening works." }
         } finally { $done.Dispose() }
     }
 } finally {

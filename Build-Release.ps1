@@ -1,4 +1,4 @@
-﻿param([switch]$SkipNativeBuild, [string]$Version = '0.3.0-preview.1', [string]$OutputDir = 'release')
+﻿param([switch]$SkipNativeBuild, [string]$Version = '0.3.0-preview.2', [string]$OutputDir = 'release')
 $ErrorActionPreference = 'Stop'
 $version = $Version
 Push-Location $PSScriptRoot
