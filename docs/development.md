@@ -66,7 +66,7 @@ cmd.exe /c tests\BuildFixture.cmd
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Fixture.ps1
 ```
 
-通常の起動とログアウト状態の起動（最大化ボタンのないログイン画面）に加え、LINE → 管理プロセス → 32bit更新プログラム → 更新後の64bit LINEという経路を模擬します。`ShellExecuteExW`、`CreateProcessW`、`CreateProcessA`を経由したDLLの引き継ぎと、補助DLLが記録フォルダーへ写されてから読み込まれることを確認します。実際のLINE、ユーザーの起動設定、認証データは変更しません。
+通常の起動（メイン画面がクロークされた状態で表示され、閉じたあとにクロークが解除されること）とログアウト状態の起動（最大化ボタンのないログイン画面）に加え、LINE → 管理プロセス → 32bit更新プログラム → 更新後の64bit LINEという経路を模擬します。`ShellExecuteExW`、`CreateProcessW`、`CreateProcessA`を経由したDLLの引き継ぎと、補助DLLが記録フォルダーへ写されてから読み込まれることを確認します。実際のLINE、ユーザーの起動設定、認証データは変更しません。
 
 通知領域アイコンの合成は次のテストで確認します。LINEの画像は使わず、色のある正方形・灰色の正方形・オレンジの印付きの正方形をテスト用に作り、接続済み・接続中・未読ありと判定されることと、未読のときだけ印が重なることを確かめます。ロゴには本ツールのアイコンを使います。
 

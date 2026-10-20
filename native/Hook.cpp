@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <commctrl.h>
+#include <dwmapi.h>
 #include <stdio.h>
 #include <detours.h>
 
@@ -21,6 +22,8 @@ static wchar_t logoSource[MAX_PATH];
 static bool startup = true;
 static bool launcher = false;
 static HWND closing = nullptr;
+static bool closePosted = false;
+static const UINT_PTR CloseTimer = 0x4C54; // "LT"
 static HICON lineIcon = nullptr;
 static bool iconLoaded = false;
 
@@ -53,13 +56,36 @@ static bool IsMain(HWND window) {
     return wcscmp(title, L"LINE") == 0;
 }
 
+// The logged-in main window is shown once, cloaked by DWM so nothing appears on screen,
+// because LINE only starts counting unread messages and showing new-message notifications
+// (and the "N" on its tray icon) after its main window has loaded. It is closed through
+// LINE's usual close-to-tray handling as soon as LINE marks unread messages on its tray icon,
+// or after five seconds when there are none.
+static void Cloak(HWND window, BOOL on) {
+    DwmSetWindowAttribute(window, DWMWA_CLOAK, &on, sizeof(on));
+}
+
+static void PostClose(HWND window, UINT reason) {
+    if (closePosted) return;
+    closePosted = true;
+    KillTimer(window, CloseTimer);
+    PostMessageW(window, WM_CLOSE, 0, 0);
+    Log("startup-close-posted", window, reason);
+}
+
 static LRESULT CALLBACK MainProc(HWND window, UINT message, WPARAM wp, LPARAM lp,
     UINT_PTR, DWORD_PTR) {
+    // The timer is ours and is not passed to LINE.
+    if (message == WM_TIMER && wp == CloseTimer) { PostClose(window, message); return 0; }
     LRESULT result = DefSubclassProc(window, message, wp, lp);
     if (message == WM_CLOSE || message == WM_NCDESTROY) {
         startup = false;
         closing = nullptr;
+        KillTimer(window, CloseTimer);
         RemoveWindowSubclass(window, MainProc, 1);
+        // LINE hides the window when it closes to the tray; only then is it uncloaked.
+        if (message == WM_CLOSE && IsWindowVisible(window)) RealShowWindow(window, SW_HIDE);
+        Cloak(window, FALSE);
         Log("startup-close-complete", window, IsWindowVisible(window));
     }
     return result;
@@ -89,34 +115,34 @@ static bool Suppress(HWND window) {
             startup = false;
             return false;
         }
-        // Close through Qt's usual close-to-tray handling before its first native show.
         if (!SetWindowSubclass(window, MainProc, 1, 0)) {
             Log("subclass-failed", window, GetLastError());
             startup = false;
             return false;
         }
         closing = window;
-        if (!PostMessageW(window, WM_CLOSE, 0, 0)) {
-            RemoveWindowSubclass(window, MainProc, 1);
-            startup = false;
-            closing = nullptr;
-            return false;
-        }
-        Log("startup-show-suppressed", window, style);
+        Cloak(window, TRUE);
+        SetTimer(window, CloseTimer, 5000, nullptr);
+        Log("startup-main-cloaked", window, style);
     }
-    return window == closing;
+    // The cloaked main window is allowed to show, without taking the focus.
+    return false;
 }
+
+static bool IsCloakedMain(HWND window) { return closing && window == closing; }
 
 static BOOL WINAPI HookShowWindow(HWND window, int command) {
     if (command != SW_HIDE && startup) {
         Log("show-request", window, command);
         if (Suppress(window)) return IsWindowVisible(window);
+        if (IsCloakedMain(window)) command = SW_SHOWNA;
     }
     return RealShowWindow(window, command);
 }
 
 static BOOL WINAPI HookShowWindowAsync(HWND window, int command) {
     if (command != SW_HIDE && Suppress(window)) return TRUE;
+    if (command != SW_HIDE && IsCloakedMain(window)) command = SW_SHOWNA;
     return RealShowWindowAsync(window, command);
 }
 
@@ -124,6 +150,7 @@ static BOOL WINAPI HookSetWindowPos(HWND window, HWND after, int x, int y, int c
     if ((flags & SWP_SHOWWINDOW) && startup) {
         Log("position-show-request", window, flags);
         if (Suppress(window)) flags &= ~SWP_SHOWWINDOW;
+        else if (IsCloakedMain(window)) flags |= SWP_NOACTIVATE;
     }
     return RealSetWindowPos(window, after, x, y, cx, cy, flags);
 }
@@ -137,7 +164,7 @@ static HWND WINAPI HookCreateWindowExW(DWORD exStyle, LPCWSTR cls, LPCWSTR title
     HWND window = RealCreateWindowExW(exStyle, cls, title, visible ? style & ~WS_VISIBLE : style,
         x, y, width, height, parent, menu, instance, param);
     if (startup && window && !(style & WS_CHILD)) Log("create-top-window", window, style);
-    if (visible && !Suppress(window)) RealShowWindow(window, SW_SHOWNORMAL);
+    if (visible && !Suppress(window)) RealShowWindow(window, IsCloakedMain(window) ? SW_SHOWNA : SW_SHOWNORMAL);
     return window;
 }
 
@@ -149,6 +176,7 @@ static LRESULT CALLBACK TrayProc(HWND window, UINT message, WPARAM wp, LPARAM lp
             event == NIN_SELECT || event == NIN_KEYSELECT || event == WM_CONTEXTMENU) {
             // Explicit tray interaction always restores normal user control, even if login failed.
             startup = false;
+            if (closing) { closePosted = true; KillTimer(closing, CloseTimer); Cloak(closing, FALSE); }
             Log("tray-user-activation", window, event);
         }
     }
@@ -299,6 +327,8 @@ static BOOL WINAPI HookNotifyIcon(DWORD operation, PNOTIFYICONDATAW original) {
             memcpy(&changed, original, min(original->cbSize, static_cast<DWORD>(sizeof(changed))));
             changed.hIcon = icon;
             if (state != lastState) { Log("tray-state", original->hWnd, composed ? state : -1); lastState = state; }
+            // Unread messages are counted: the cloaked main window has done its job.
+            if (closing && (state & 2)) PostClose(closing, 2);
             BOOL result = RealNotifyIcon(operation, &changed);
             // The shell keeps its own copy of the icon.
             if (composed) DestroyIcon(composed);
